@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## プロジェクトの状態
 
-営業日報システム（営業担当者が訪問記録・課題(Problem)・翌日予定(Plan)を日報として記録し、上長がProblem/Planにスレッド形式でコメントする仕組み）の設計ドキュメント一式に加え、Next.jsプロジェクトの雛形（`create-next-app` + shadcn/ui + Prisma + Vitest）を作成済み。画面・API・DBの実装自体はまだこれから。
+営業日報システム（営業担当者が訪問記録・課題(Problem)・翌日予定(Plan)を日報として記録し、上長がProblem/Planにスレッド形式でコメントする仕組み）の設計ドキュメント一式に加え、Next.jsプロジェクトの雛形（`create-next-app` + shadcn/ui + Prisma + Vitest）を作成済み。Prismaの初期マイグレーション（`prisma/migrations/`）とローカル開発用シードスクリプト（`prisma/seed.ts`）も投入済み。画面・APIの実装自体はまだこれから。
 
 実装を進める際は、下記4ドキュメントの内容と齟齬が出ないよう追従すること。Prismaスキーマ（`prisma/schema.prisma`）は `doc/requirements.md` 6章のER図をそのまま反映したもので、テーブル追加・変更時は両者を同期させること。
 
@@ -21,6 +21,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `npx vitest run path/to/file.test.ts` | 単一テストファイルのみ実行 |
 | `npm run prisma:generate` | Prisma Clientの生成（`src/generated/prisma` に出力） |
 | `npm run prisma:migrate` | ローカルDBへのマイグレーション適用（`DATABASE_URL` が必要） |
+| `npm run prisma:seed` | `doc/test_specification.md` 3章のテスト前提データを投入（`prisma/seed.ts`） |
 | `npx shadcn@latest add <component>` | shadcn/uiコンポーネントの追加 |
 | `make ci` | lint / typecheck / test をまとめて実行（CIと同じ検証） |
 | `make docker-build` | Cloud Run用Dockerイメージをビルド |
@@ -40,6 +41,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | DBスキーマ定義 | Prisma.js |
 | テスト | Vitest |
 | デプロイ | Google Cloud Run |
+
+## ローカル開発環境のセットアップ
+
+1. PostgreSQLを用意する（例: Dockerで一時的に起動する場合）
+   ```
+   docker run -d --name daily-report-postgres \
+     -e POSTGRES_USER=johndoe -e POSTGRES_PASSWORD=randompassword -e POSTGRES_DB=mydb \
+     -p 5432:5432 postgres:16-alpine
+   ```
+2. `.env` に `DATABASE_URL`（例: `postgresql://johndoe:randompassword@localhost:5432/mydb?schema=public`）を設定する
+3. `npm run prisma:migrate` でマイグレーションを適用する
+4. `npm run prisma:seed` でテスト前提データ（`doc/test_specification.md` 3章の部署D1/D2・社員E1〜E3/E9・顧客C1/C2）を投入する
 
 ## 設計ドキュメント
 
@@ -63,6 +76,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - `doc/`: 設計ドキュメント（本ファイルから `@doc/...` でインポート）
 - `prisma/schema.prisma`: DBスキーマ（Prisma Client出力先は `src/generated/prisma`、gitignore対象）
+- `prisma/migrations/`: マイグレーション履歴（`npm run prisma:migrate` で生成・適用）
+- `prisma/seed.ts`: ローカル開発用シードスクリプト（`npm run prisma:seed` で実行、`doc/test_specification.md` 3章のデータを投入）
 - `src/app/`: Next.js App Routerのルーティング
 - `src/components/ui/`: shadcn/uiが生成するコンポーネント
 - `src/lib/`: 共通ユーティリティ（`src/lib/utils.ts` はshadcn/ui標準の `cn()` ヘルパー）
@@ -84,5 +99,6 @@ GitHub Actions（`.github/workflows/ci-cd.yml`）でCI/CDを構成している�
 ## 注意事項
 
 - `AGENTS.md`（`create-next-app` が生成）に記載の通り、本リポジトリのNext.jsは学習データ上の一般的なNext.jsと破壊的変更がある可能性がある。実装前に `node_modules/next/dist/docs/` の該当ガイドを確認すること
+- Prisma 7の `prisma-client` ジェネレータ（`schema.prisma` の `generator client`）はURL直指定ではなくドライバアダプタを要求する。アプリケーションコードで `PrismaClient` をインスタンス化する際は、`prisma.config.ts` の設定だけでは不足しており、`new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) })`（`@prisma/adapter-pg` + `pg`）のように明示的にアダプタを渡す必要がある（`prisma/seed.ts` を参照）
 - OpenAPIスキーマの生成方法（Zodスキーマからの自動生成ツール等）は未選定。実装時に方針を決めて本ファイルに追記すること
 - GitHubリポジトリ: https://github.com/FixedLemon/daily-report （public、デフォルトブランチ `main`）
