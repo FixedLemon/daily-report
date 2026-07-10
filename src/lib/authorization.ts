@@ -37,10 +37,12 @@ export function isDirectManager(
 const DEFAULT_FORBIDDEN_MESSAGE = "この操作を行う権限がありません";
 
 // 本人 または 直属の上長 のいずれでもない場合に403 FORBIDDENを投げる。
-// GET /daily-reports（一覧・詳細）の認可判定用（本人は自分の日報を、上長は部下の日報を閲覧できる）。
+// 「閲覧」系エンドポイント専用: GET /daily-reports（一覧・詳細）、GET /daily-reports/{id}/comments
+// （本人は自分の日報を、上長は部下の日報・コメントを閲覧できる。doc/api_specification.md 3.2, 4.1）。
+// 関数名を用途（閲覧）ベースにしているのは更新系エンドポイントへの誤用を防ぐため。
 // PUT /daily-reports（更新）は本人のみ許可のため、この関数は使わずisSelfのみで判定すること
 // （doc/api_specification.md 3.4「認可: 本人の日報のみ更新可（上長は更新不可、コメントのみ）」）。
-export function assertSelfOrDirectManager(
+export function assertCanViewReport(
   loginEmployeeId: number,
   target: ManagerCheckTarget,
   message: string = DEFAULT_FORBIDDEN_MESSAGE,

@@ -3,7 +3,7 @@ import {
   isSelf,
   hasRole,
   isDirectManager,
-  assertSelfOrDirectManager,
+  assertCanViewReport,
   assertDirectManager,
   assertHasRole,
 } from "./authorization";
@@ -50,32 +50,32 @@ describe("isDirectManager", () => {
     expect(isDirectManager(E9, employeeE2)).toBe(false);
   });
 
-  it("returns false for an indirect manager (manager of the manager)", () => {
+  it("does not chain: E9 is E1's direct manager, but that does not make E9 a direct manager of E1's subordinate E2", () => {
     // E1がE2の上長、E9がさらにE1の上長という間接関係を想定。
-    // E2から見てE1は直属だがE9は間接的な上長であり対象外。
+    // E2から見てE1は直属だがE9は間接的な上長であり対象外
+    // （E9がE2の直属上長でないことは前段のテストで既に確認済み）。
     const employeeE1AsTargetOfE9 = { id: E1, managerId: E9 };
     expect(isDirectManager(E9, employeeE1AsTargetOfE9)).toBe(true);
-    expect(isDirectManager(E9, employeeE2)).toBe(false);
   });
 });
 
-describe("assertSelfOrDirectManager", () => {
+describe("assertCanViewReport", () => {
   it("does not throw for the report owner (self)", () => {
-    expect(() => assertSelfOrDirectManager(E2, employeeE2)).not.toThrow();
+    expect(() => assertCanViewReport(E2, employeeE2)).not.toThrow();
   });
 
-  it("does not throw for the direct manager", () => {
-    expect(() => assertSelfOrDirectManager(E1, employeeE2)).not.toThrow();
+  it("does not throw for the direct manager (TC-DR-11)", () => {
+    expect(() => assertCanViewReport(E1, employeeE2)).not.toThrow();
   });
 
-  it("throws 403 FORBIDDEN for an employee who is neither self nor the direct manager (TC-DR-08, TC-DR-13)", () => {
-    expect(() => assertSelfOrDirectManager(E3, employeeE2)).toThrow(
+  it("throws 403 FORBIDDEN for an employee who is neither self nor the direct manager (TC-DR-13)", () => {
+    expect(() => assertCanViewReport(E3, employeeE2)).toThrow(
       expect.objectContaining({ code: "FORBIDDEN", status: 403 }),
     );
   });
 
   it("throws 403 FORBIDDEN for an unrelated manager from another department (TC-DR-12)", () => {
-    expect(() => assertSelfOrDirectManager(E9, employeeE2)).toThrow(
+    expect(() => assertCanViewReport(E9, employeeE2)).toThrow(
       expect.objectContaining({ code: "FORBIDDEN", status: 403 }),
     );
   });
@@ -101,13 +101,11 @@ describe("assertDirectManager", () => {
     );
   });
 
-  it("throws 403 FORBIDDEN for an indirect manager (manager of the manager)", () => {
-    const employeeE1WithManagerE9 = { id: E1, managerId: E9 };
+  it("does not chain: E9 is E1's direct manager, but that does not authorize E9 to comment on E1's subordinate E2's report", () => {
     // E9はE1の直属上長だが、E1配下のE2にとっては間接的な上長（上長の上長）であり対象外
+    // （E9がE2にコメントできないことは前段のテストで既に確認済み）。
+    const employeeE1WithManagerE9 = { id: E1, managerId: E9 };
     expect(() => assertDirectManager(E9, employeeE1WithManagerE9)).not.toThrow();
-    expect(() => assertDirectManager(E9, employeeE2)).toThrow(
-      expect.objectContaining({ code: "FORBIDDEN", status: 403 }),
-    );
   });
 });
 
