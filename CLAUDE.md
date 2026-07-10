@@ -44,7 +44,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## ローカル開発環境のセットアップ
 
-1. PostgreSQLを用意する（例: Dockerで一時的に起動する場合）
+1. PostgreSQLを用意する（例: Dockerで一時的に起動する場合。`daily-report-postgres` という名前のコンテナが既に存在する場合は、このコマンドは失敗するので `docker start daily-report-postgres` で起動するか、不要なら `docker rm -f daily-report-postgres` してから再実行する）
    ```
    docker run -d --name daily-report-postgres \
      -e POSTGRES_USER=johndoe -e POSTGRES_PASSWORD=randompassword -e POSTGRES_DB=mydb \
@@ -99,6 +99,6 @@ GitHub Actions（`.github/workflows/ci-cd.yml`）でCI/CDを構成している�
 ## 注意事項
 
 - `AGENTS.md`（`create-next-app` が生成）に記載の通り、本リポジトリのNext.jsは学習データ上の一般的なNext.jsと破壊的変更がある可能性がある。実装前に `node_modules/next/dist/docs/` の該当ガイドを確認すること
-- Prisma 7の `prisma-client` ジェネレータ（`schema.prisma` の `generator client`）はURL直指定ではなくドライバアダプタを要求する。アプリケーションコードで `PrismaClient` をインスタンス化する際は、`prisma.config.ts` の設定だけでは不足しており、`new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) })`（`@prisma/adapter-pg` + `pg`）のように明示的にアダプタを渡す必要がある（`prisma/seed.ts` を参照）
+- Prisma 7の `prisma-client` ジェネレータ（`schema.prisma` の `generator client`）はURL直指定ではなくドライバアダプタを要求する。アプリケーションコードで `PrismaClient` をインスタンス化する際は、`prisma.config.ts` の設定だけでは不足しており、`new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) })`（`@prisma/adapter-pg` + `pg`）のように明示的にアダプタを渡す必要がある（`prisma/seed.ts` を参照）。ただし `prisma/seed.ts` は実行のたびにプロセスが終了する一回限りのスクリプトのため毎回 `new PrismaClient(...)` して問題ないが、Next.jsのAPIルート等アプリケーションコードでこのパターンをそのまま使うと、開発モードのホットリロードのたびに新しい接続プールが生成されてPostgresの `max_connections` を枯渇させる。アプリケーションコードで使う場合は `globalThis` にキャッシュするシングルトンパターン（`globalThis.prisma ??= new PrismaClient({ adapter })`）を用いること
 - OpenAPIスキーマの生成方法（Zodスキーマからの自動生成ツール等）は未選定。実装時に方針を決めて本ファイルに追記すること
 - GitHubリポジトリ: https://github.com/FixedLemon/daily-report （public、デフォルトブランチ `main`）
