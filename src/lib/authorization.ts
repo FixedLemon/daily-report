@@ -1,0 +1,78 @@
+import { ApiError } from "@/lib/api/errors";
+
+// doc/api_specification.md 1.2: role配列は "SALES" / "MANAGER" / "ADMIN" のいずれかを要素に持つ。
+export type Role = "SALES" | "MANAGER" | "ADMIN";
+
+export interface EmployeeRoleLike {
+  role: string[];
+}
+
+// 認可判定に必要な最小限のフィールド。日報のemployeeIdやコメント対象社員など、
+// 既にDBから取得済みのレコードをそのまま渡せるようにフィールド名を揃えている。
+export interface ManagerCheckTarget {
+  id: number;
+  managerId: number | null;
+}
+
+// 本人判定: ログインユーザーが対象社員本人かどうか。
+export function isSelf(loginEmployeeId: number, targetEmployeeId: number): boolean {
+  return loginEmployeeId === targetEmployeeId;
+}
+
+// ロール判定: role配列に指定ロールが含まれるか。
+export function hasRole(employee: EmployeeRoleLike, role: Role): boolean {
+  return employee.role.includes(role);
+}
+
+// 直属の上長判定: target.managerId が login社員のIDと一致するかのみを見る。
+// manager_idを再帰的に辿らないため、上長の上長のような間接的な関係は対象外
+// （doc/requirements.md 5章「閲覧・コメント権限」、TC-DR-12, TC-CM-03）。
+export function isDirectManager(
+  loginEmployeeId: number,
+  target: ManagerCheckTarget,
+): boolean {
+  return target.managerId === loginEmployeeId;
+}
+
+const DEFAULT_FORBIDDEN_MESSAGE = "この操作を行う権限がありません";
+
+// 本人 または 直属の上長 のいずれでもない場合に403 FORBIDDENを投げる。
+// 「閲覧」系エンドポイント専用: GET /daily-reports（一覧・詳細）、GET /daily-reports/{id}/comments
+// （本人は自分の日報を、上長は部下の日報・コメントを閲覧できる。doc/api_specification.md 3.2, 4.1）。
+// 関数名を用途（閲覧）ベースにしているのは更新系エンドポイントへの誤用を防ぐため。
+// PUT /daily-reports（更新）は本人のみ許可のため、この関数は使わずisSelfのみで判定すること
+// （doc/api_specification.md 3.4「認可: 本人の日報のみ更新可（上長は更新不可、コメントのみ）」）。
+export function assertCanViewReport(
+  loginEmployeeId: number,
+  target: ManagerCheckTarget,
+  message: string = DEFAULT_FORBIDDEN_MESSAGE,
+): void {
+  if (isSelf(loginEmployeeId, target.id) || isDirectManager(loginEmployeeId, target)) {
+    return;
+  }
+  throw new ApiError("FORBIDDEN", message);
+}
+
+// 直属の上長でなければ403 FORBIDDENを投げる（本人は含まない）。
+// コメント投稿(F-30)は「対象日報の作成者の manager_id == ログインユーザー」でのみ許可され、
+// 本人（営業担当者自身）によるコメント投稿は認可マトリクス上も不可のため区別している。
+export function assertDirectManager(
+  loginEmployeeId: number,
+  target: ManagerCheckTarget,
+  message: string = "コメントを投稿する権限がありません",
+): void {
+  if (!isDirectManager(loginEmployeeId, target)) {
+    throw new ApiError("FORBIDDEN", message);
+  }
+}
+
+// 指定ロールを持たない場合に403 FORBIDDENを投げる。マスタ操作(5章)は管理者のみ、等。
+export function assertHasRole(
+  employee: EmployeeRoleLike,
+  role: Role,
+  message: string = DEFAULT_FORBIDDEN_MESSAGE,
+): void {
+  if (!hasRole(employee, role)) {
+    throw new ApiError("FORBIDDEN", message);
+  }
+}
