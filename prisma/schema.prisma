@@ -27,6 +27,7 @@ model Employee {
   id           Int        @id @default(autoincrement()) @map("employee_id")
   name         String
   email        String     @unique
+  passwordHash String     @map("password_hash")
   departmentId Int        @map("department_id")
   department   Department @relation(fields: [departmentId], references: [id])
   managerId    Int?       @map("manager_id")
@@ -37,8 +38,22 @@ model Employee {
   ownedCustomers CustomerMaster[] @relation("CustomerOwner")
   dailyReports   DailyReport[]
   comments       Comment[]
+  sessions       Session[]
 
   @@map("employee")
+}
+
+// ログインセッション（Bearerトークン方式）。opaqueなトークンをDBで管理し、
+// logout時に該当行を削除することでトークンを即時失効させる（TC-AUTH-04）。
+model Session {
+  id         Int      @id @default(autoincrement()) @map("session_id")
+  token      String   @unique
+  employeeId Int      @map("employee_id")
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now()) @map("created_at")
+  expiresAt  DateTime @map("expires_at")
+
+  @@map("session")
 }
 
 model CustomerMaster {
