@@ -67,6 +67,7 @@ erDiagram
     EMPLOYEE ||--o{ CUSTOMER : "担当する"
     EMPLOYEE ||--o{ DAILY_REPORT : "作成する"
     EMPLOYEE ||--o{ COMMENT : "投稿する"
+    EMPLOYEE ||--o{ SESSION : "ログインする"
     DAILY_REPORT ||--o{ VISIT_RECORD : "含む"
     DAILY_REPORT ||--o{ COMMENT : "紐づく"
     CUSTOMER ||--o{ VISIT_RECORD : "訪問される"
@@ -81,9 +82,18 @@ erDiagram
         int employee_id PK
         string name
         string email
+        string password_hash
         int department_id FK
         int manager_id FK "直属の上長のemployee_id（NULL可）"
         string role "営業 / 上長 / 管理者 等"
+    }
+
+    SESSION {
+        int session_id PK
+        string token
+        int employee_id FK
+        datetime created_at
+        datetime expires_at
     }
 
     CUSTOMER {
@@ -126,7 +136,8 @@ erDiagram
 ### テーブル補足
 
 - **DEPARTMENT**: `parent_department_id` により部署階層（例: 本部＞部＞課）を表現。階層が不要な場合はこの列を使わずフラットに運用可能
-- **EMPLOYEE**: 営業マスタに相当。`manager_id` の自己参照で上長・部下関係を表現するため、別テーブルに分けていない
+- **EMPLOYEE**: 営業マスタに相当。`manager_id` の自己参照で上長・部下関係を表現するため、別テーブルに分けていない。`password_hash` はログイン認証用（scryptによるハッシュ値。平文パスワードは保存しない）
+- **SESSION**: `api_specification.md` 1.2のBearerトークン方式を実現するためのログインセッション管理テーブル。`token` はopaqueなランダム文字列で、ログアウト時に該当行を削除することで即時失効させる。`expires_at` を過ぎたセッションは無効として扱う（有効期限は24時間固定。リフレッシュ方式は7章の今後の検討事項）
 - **CUSTOMER**: `owner_employee_id` は主担当営業（任意項目）。将来的に複数担当制にする場合は中間テーブル化を検討
 - **DAILY_REPORT**: Problem/Planは複数行管理ではなく1件ずつのテキスト項目。`(employee_id, report_date)` に一意制約を付与
 - **VISIT_RECORD**: 1日報に複数行ぶら下がる。`sort_order` は同日内の表示順管理用（任意）
