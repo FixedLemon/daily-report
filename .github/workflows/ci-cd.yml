@@ -1,0 +1,72 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  PROJECT_ID: daily-report-502008
+  REGION: asia-northeast1
+  SERVICE: daily-report
+  REPOSITORY: daily-report
+
+jobs:
+  test:
+    name: Lint / Typecheck / Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: make ci
+
+      - run: make build
+
+  deploy:
+    name: Deploy to Cloud Run
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Workload Identity Federation用
+    steps:
+      - uses: actions/checkout@v4
+
+      # 認証方式は未確定のため Workload Identity Federation を仮設定している。
+      # GCP_WIF_PROVIDER / GCP_WIF_SERVICE_ACCOUNT の2つをリポジトリのSecretsに登録すること。
+      # サービスアカウントJSONキー方式に切り替える場合は、このステップを
+      #   with:
+      #     credentials_json: ${{ secrets.GCP_SA_KEY }}
+      # に置き換える。
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: make gcp-auth-docker PROJECT_ID=${{ env.PROJECT_ID }} REGION=${{ env.REGION }}
+
+      - name: Build image
+        run: make docker-build PROJECT_ID=${{ env.PROJECT_ID }} REGION=${{ env.REGION }} SERVICE=${{ env.SERVICE }} REPOSITORY=${{ env.REPOSITORY }} TAG=${{ github.sha }}
+
+      - name: Push image
+        run: make docker-push PROJECT_ID=${{ env.PROJECT_ID }} REGION=${{ env.REGION }} SERVICE=${{ env.SERVICE }} REPOSITORY=${{ env.REPOSITORY }} TAG=${{ github.sha }}
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy $SERVICE \
+            --image=$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:${{ github.sha }} \
+            --region=$REGION \
+            --project=$PROJECT_ID \
+            --platform=managed \
+            --allow-unauthenticated

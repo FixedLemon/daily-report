@@ -1,0 +1,101 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+//
+// Models mirror the ER diagram in ../doc/requirements.md (section 6).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Department {
+  id                 Int          @id @default(autoincrement()) @map("department_id")
+  name               String
+  parentDepartmentId Int?         @map("parent_department_id")
+  parentDepartment   Department?  @relation("DepartmentHierarchy", fields: [parentDepartmentId], references: [id])
+  childDepartments   Department[] @relation("DepartmentHierarchy")
+  employees          Employee[]
+
+  @@map("department")
+}
+
+model Employee {
+  id           Int        @id @default(autoincrement()) @map("employee_id")
+  name         String
+  email        String     @unique
+  departmentId Int        @map("department_id")
+  department   Department @relation(fields: [departmentId], references: [id])
+  managerId    Int?       @map("manager_id")
+  manager      Employee?  @relation("EmployeeManager", fields: [managerId], references: [id])
+  subordinates Employee[] @relation("EmployeeManager")
+  role         String[] // "SALES" / "MANAGER" / "ADMIN"
+
+  ownedCustomers CustomerMaster[] @relation("CustomerOwner")
+  dailyReports   DailyReport[]
+  comments       Comment[]
+
+  @@map("employee")
+}
+
+model CustomerMaster {
+  id              Int           @id @default(autoincrement()) @map("customer_id")
+  name            String
+  address         String?
+  phone           String?
+  ownerEmployeeId Int?          @map("owner_employee_id")
+  ownerEmployee   Employee?     @relation("CustomerOwner", fields: [ownerEmployeeId], references: [id])
+  visitRecords    VisitRecord[]
+
+  @@map("customer")
+}
+
+model DailyReport {
+  id           Int           @id @default(autoincrement()) @map("report_id")
+  employeeId   Int           @map("employee_id")
+  employee     Employee      @relation(fields: [employeeId], references: [id])
+  reportDate   DateTime      @map("report_date") @db.Date
+  problem      String?
+  plan         String?
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  visitRecords VisitRecord[]
+  comments     Comment[]
+
+  @@unique([employeeId, reportDate])
+  @@map("daily_report")
+}
+
+model VisitRecord {
+  id         Int            @id @default(autoincrement()) @map("visit_id")
+  reportId   Int            @map("report_id")
+  report     DailyReport    @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  customerId Int            @map("customer_id")
+  customer   CustomerMaster @relation(fields: [customerId], references: [id])
+  visitTime  DateTime       @map("visit_time")
+  content    String
+  sortOrder  Int            @default(0) @map("sort_order")
+
+  @@map("visit_record")
+}
+
+enum CommentTarget {
+  PROBLEM
+  PLAN
+}
+
+model Comment {
+  id         Int           @id @default(autoincrement()) @map("comment_id")
+  reportId   Int           @map("report_id")
+  report     DailyReport   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  employeeId Int           @map("employee_id")
+  employee   Employee      @relation(fields: [employeeId], references: [id])
+  target     CommentTarget
+  content    String
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  @@map("comment")
+}
