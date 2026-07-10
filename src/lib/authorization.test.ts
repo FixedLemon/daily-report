@@ -1,21 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const { mockPrisma } = vi.hoisted(() => ({
-  mockPrisma: { employee: { findUnique: vi.fn() } },
-}));
-
-vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
-
-const {
+import { describe, expect, it } from "vitest";
+import {
   isSelf,
   hasRole,
   isDirectManager,
-  isDirectManagerByEmployeeId,
   assertSelfOrDirectManager,
-  assertSelfOrDirectManagerByEmployeeId,
   assertDirectManager,
   assertHasRole,
-} = await import("./authorization");
+} from "./authorization";
 
 // doc/test_specification.md 3章のテスト前提データ
 // E1: 鈴木部長（MANAGER, department D1, manager_id: null）
@@ -28,10 +19,6 @@ const E3 = 3;
 const E9 = 9;
 
 const employeeE2 = { id: E2, managerId: E1 };
-
-beforeEach(() => {
-  vi.clearAllMocks();
-});
 
 describe("isSelf", () => {
   it("returns true when the login employee is the target employee", () => {
@@ -72,27 +59,6 @@ describe("isDirectManager", () => {
   });
 });
 
-describe("isDirectManagerByEmployeeId", () => {
-  it("returns true when the target employee's managerId matches the login employee (TC-DR-11)", async () => {
-    mockPrisma.employee.findUnique.mockResolvedValue(employeeE2);
-    await expect(isDirectManagerByEmployeeId(E1, E2)).resolves.toBe(true);
-    expect(mockPrisma.employee.findUnique).toHaveBeenCalledWith({
-      where: { id: E2 },
-      select: { id: true, managerId: true },
-    });
-  });
-
-  it("returns false for a manager who is not the direct manager (TC-DR-12: E9 is not E2's manager)", async () => {
-    mockPrisma.employee.findUnique.mockResolvedValue(employeeE2);
-    await expect(isDirectManagerByEmployeeId(E9, E2)).resolves.toBe(false);
-  });
-
-  it("returns false when the target employee does not exist", async () => {
-    mockPrisma.employee.findUnique.mockResolvedValue(null);
-    await expect(isDirectManagerByEmployeeId(E1, 9999)).resolves.toBe(false);
-  });
-});
-
 describe("assertSelfOrDirectManager", () => {
   it("does not throw for the report owner (self)", () => {
     expect(() => assertSelfOrDirectManager(E2, employeeE2)).not.toThrow();
@@ -111,29 +77,6 @@ describe("assertSelfOrDirectManager", () => {
   it("throws 403 FORBIDDEN for an unrelated manager from another department (TC-DR-12)", () => {
     expect(() => assertSelfOrDirectManager(E9, employeeE2)).toThrow(
       expect.objectContaining({ code: "FORBIDDEN", status: 403 }),
-    );
-  });
-});
-
-describe("assertSelfOrDirectManagerByEmployeeId", () => {
-  it("does not throw for self without querying the database", async () => {
-    await expect(
-      assertSelfOrDirectManagerByEmployeeId(E2, E2),
-    ).resolves.toBeUndefined();
-    expect(mockPrisma.employee.findUnique).not.toHaveBeenCalled();
-  });
-
-  it("does not throw for the direct manager (TC-DR-11)", async () => {
-    mockPrisma.employee.findUnique.mockResolvedValue(employeeE2);
-    await expect(
-      assertSelfOrDirectManagerByEmployeeId(E1, E2),
-    ).resolves.toBeUndefined();
-  });
-
-  it("throws 403 FORBIDDEN for a manager who is not directly assigned (TC-DR-12)", async () => {
-    mockPrisma.employee.findUnique.mockResolvedValue(employeeE2);
-    await expect(assertSelfOrDirectManagerByEmployeeId(E9, E2)).rejects.toMatchObject(
-      { code: "FORBIDDEN", status: 403 },
     );
   });
 });

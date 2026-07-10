@@ -1,4 +1,3 @@
-import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/lib/api/errors";
 
 // doc/api_specification.md 1.2: role配列は "SALES" / "MANAGER" / "ADMIN" のいずれかを要素に持つ。
@@ -35,27 +34,12 @@ export function isDirectManager(
   return target.managerId === loginEmployeeId;
 }
 
-// target社員をemployee_idからDB参照して直属の上長判定を行う版。
-// GET /daily-reports?employee_id=... のようにtarget社員のレコードをまだ
-// 取得していない呼び出し元向け。
-export async function isDirectManagerByEmployeeId(
-  loginEmployeeId: number,
-  targetEmployeeId: number,
-): Promise<boolean> {
-  const target = await prisma.employee.findUnique({
-    where: { id: targetEmployeeId },
-    select: { id: true, managerId: true },
-  });
-  if (!target) {
-    return false;
-  }
-  return isDirectManager(loginEmployeeId, target);
-}
-
 const DEFAULT_FORBIDDEN_MESSAGE = "この操作を行う権限がありません";
 
 // 本人 または 直属の上長 のいずれでもない場合に403 FORBIDDENを投げる。
-// GET/PUT /daily-reports の認可判定用（本人は自分の日報を、上長は部下の日報を扱える）。
+// GET /daily-reports（一覧・詳細）の認可判定用（本人は自分の日報を、上長は部下の日報を閲覧できる）。
+// PUT /daily-reports（更新）は本人のみ許可のため、この関数は使わずisSelfのみで判定すること
+// （doc/api_specification.md 3.4「認可: 本人の日報のみ更新可（上長は更新不可、コメントのみ）」）。
 export function assertSelfOrDirectManager(
   loginEmployeeId: number,
   target: ManagerCheckTarget,
@@ -65,21 +49,6 @@ export function assertSelfOrDirectManager(
     return;
   }
   throw new ApiError("FORBIDDEN", message);
-}
-
-// employee_idのみが分かっている場合（一覧取得APIのクエリパラメータ等）向けの非同期版。
-export async function assertSelfOrDirectManagerByEmployeeId(
-  loginEmployeeId: number,
-  targetEmployeeId: number,
-  message: string = DEFAULT_FORBIDDEN_MESSAGE,
-): Promise<void> {
-  if (isSelf(loginEmployeeId, targetEmployeeId)) {
-    return;
-  }
-  const isManager = await isDirectManagerByEmployeeId(loginEmployeeId, targetEmployeeId);
-  if (!isManager) {
-    throw new ApiError("FORBIDDEN", message);
-  }
 }
 
 // 直属の上長でなければ403 FORBIDDENを投げる（本人は含まない）。
