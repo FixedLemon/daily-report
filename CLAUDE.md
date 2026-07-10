@@ -41,6 +41,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | DBスキーマ定義 | Prisma.js |
 | テスト | Vitest |
 | デプロイ | Google Cloud Run |
+| Gitフック | husky + lint-staged（`git commit` 時にステージ済みの `*.{js,jsx,ts,tsx}` に対して `eslint --fix` を自動実行。設定は `package.json` の `lint-staged` フィールド。git hookは常にリポジトリルートをカレントディレクトリとして実行されるため、サブディレクトリから `git commit` した場合も同様に動作する） |
 
 ## ローカル開発環境のセットアップ
 
