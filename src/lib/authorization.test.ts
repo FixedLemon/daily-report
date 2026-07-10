@@ -52,10 +52,10 @@ describe("isDirectManager", () => {
 
   it("does not chain: E9 is E1's direct manager, but that does not make E9 a direct manager of E1's subordinate E2", () => {
     // E1がE2の上長、E9がさらにE1の上長という間接関係を想定。
-    // E2から見てE1は直属だがE9は間接的な上長であり対象外
-    // （E9がE2の直属上長でないことは前段のテストで既に確認済み）。
+    // E2から見てE1は直属だがE9は間接的な上長であり対象外。
     const employeeE1AsTargetOfE9 = { id: E1, managerId: E9 };
     expect(isDirectManager(E9, employeeE1AsTargetOfE9)).toBe(true);
+    expect(isDirectManager(E9, employeeE2)).toBe(false);
   });
 });
 
@@ -102,10 +102,12 @@ describe("assertDirectManager", () => {
   });
 
   it("does not chain: E9 is E1's direct manager, but that does not authorize E9 to comment on E1's subordinate E2's report", () => {
-    // E9はE1の直属上長だが、E1配下のE2にとっては間接的な上長（上長の上長）であり対象外
-    // （E9がE2にコメントできないことは前段のテストで既に確認済み）。
+    // E9はE1の直属上長だが、E1配下のE2にとっては間接的な上長（上長の上長）であり対象外。
     const employeeE1WithManagerE9 = { id: E1, managerId: E9 };
     expect(() => assertDirectManager(E9, employeeE1WithManagerE9)).not.toThrow();
+    expect(() => assertDirectManager(E9, employeeE2)).toThrow(
+      expect.objectContaining({ code: "FORBIDDEN", status: 403 }),
+    );
   });
 });
 
