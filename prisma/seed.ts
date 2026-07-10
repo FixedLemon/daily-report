@@ -2,9 +2,14 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
+import { hashPassword } from "../src/lib/password";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
+
+// ローカル開発・テスト用の共通パスワード（TC-AUTH-01等の手動確認時に使用）。
+const TEST_PASSWORD = "password1234";
+const testPasswordHash = hashPassword(TEST_PASSWORD);
 
 async function main() {
   // 既存データを子テーブルから順に全削除してから再投入する（再実行可能にするため）
@@ -28,6 +33,7 @@ async function main() {
     data: {
       name: "鈴木部長",
       email: "manager01@example.com",
+      passwordHash: testPasswordHash,
       departmentId: d1.id,
       managerId: null,
       role: ["MANAGER"],
@@ -39,6 +45,7 @@ async function main() {
     data: {
       name: "山田太郎",
       email: "sales01@example.com",
+      passwordHash: testPasswordHash,
       departmentId: d2.id,
       managerId: e1.id,
       role: ["SALES"],
@@ -50,6 +57,7 @@ async function main() {
     data: {
       name: "佐藤花子",
       email: "sales02@example.com",
+      passwordHash: testPasswordHash,
       departmentId: d2.id,
       managerId: e1.id,
       role: ["SALES"],
@@ -61,6 +69,7 @@ async function main() {
     data: {
       name: "他部署社員",
       email: "manager02@example.com",
+      passwordHash: testPasswordHash,
       departmentId: d1.id,
       managerId: null,
       role: ["MANAGER"],
@@ -89,6 +98,7 @@ async function main() {
     departments: [d1.id, d2.id],
     employees: [e1.id, e2.id, e3.id, e9.id],
     customers: [c1.id, c2.id],
+    testPassword: TEST_PASSWORD,
   });
 }
 

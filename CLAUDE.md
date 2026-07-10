@@ -53,7 +53,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    ```
 2. `.env` に `DATABASE_URL`（例: `postgresql://johndoe:randompassword@localhost:5432/mydb?schema=public`）を設定する
 3. `npm run prisma:migrate` でマイグレーションを適用する
-4. `npm run prisma:seed` でテスト前提データ（`doc/test_specification.md` 3章の部署D1/D2・社員E1〜E3/E9・顧客C1/C2）を投入する
+4. `npm run prisma:seed` でテスト前提データ（`doc/test_specification.md` 3章の部署D1/D2・社員E1〜E3/E9・顧客C1/C2）を投入する。全社員の共通パスワードは `password1234`（`prisma/seed.ts` の `TEST_PASSWORD` 参照。ログインAPIの動作確認に使う）
 
 ## 設計ドキュメント
 
@@ -71,7 +71,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **ステータス管理・承認フローは意図的に持たない**（要件定義 7章「今後の検討事項」参照）。日報は提出後も本人が自由に再編集できる設計
 - **API設計の要点**: 訪問記録は日報の作成・更新APIに配列としてネストし、`visit_id` の有無で追加/更新/削除を判定する「全件置き換え方式」（個別のCRUDエンドポイントは持たない）。コメント投稿の認可は「対象日報の作成者の `manager_id` == ログインユーザー」で判定する
 - **画面はロール別に3系統**: 営業担当者向け（日報一覧・作成編集）、上長向け（部下日報一覧・詳細閲覧＋コメント）、管理者向け（顧客・社員・部署の3マスタ管理）。画面定義書のSC-04（日報作成・編集）は上長のコメントを閲覧のみ表示し、返信投稿はSC-05（上長専用）でのみ行える点に注意
-- **Prismaモデルの対応**: `prisma/schema.prisma` の `Employee` / `Department` / `CustomerMaster` / `DailyReport` / `VisitRecord` / `Comment` が、それぞれER図の `EMPLOYEE` / `DEPARTMENT` / `CUSTOMER` / `DAILY_REPORT` / `VISIT_RECORD` / `COMMENT` に対応する（`CUSTOMER` はPrismaの予約語衝突を避け `CustomerMaster` という命名にしている）
+- **Prismaモデルの対応**: `prisma/schema.prisma` の `Employee` / `Department` / `CustomerMaster` / `DailyReport` / `VisitRecord` / `Comment` / `Session` が、それぞれER図の `EMPLOYEE` / `DEPARTMENT` / `CUSTOMER` / `DAILY_REPORT` / `VISIT_RECORD` / `COMMENT` / `SESSION` に対応する（`CUSTOMER` はPrismaの予約語衝突を避け `CustomerMaster` という命名にしている）
+- **認証方式**: `doc/api_specification.md` 1.2のBearerトークン方式は、DBの `Session` テーブルによるopaqueトークン管理で実装する（JWT等のステートレストークンは不採用）。ログアウト時にセッション行を削除することでTC-AUTH-04（ログアウト後のトークン失効）を確実に満たせるため。パスワードは `Employee.passwordHash` にNode.js標準の `crypto.scrypt`（ソルト付き）でハッシュ化して保存し、bcrypt等のネイティブ依存は追加しない（`src/lib/password.ts`, `src/lib/session.ts` 参照）。セッション有効期限は24時間固定（リフレッシュトークン方式は`doc/api_specification.md` 7章の今後の検討事項）
 
 ## ディレクトリ構成の要点
 
