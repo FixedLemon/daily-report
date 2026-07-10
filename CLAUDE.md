@@ -76,12 +76,13 @@ GitHub Actions（`.github/workflows/ci-cd.yml`）でCI/CDを構成している�
 - **deployジョブ**: `main` ブランチへのpush時のみ実行。testジョブ成功後、Dockerイメージをビルドして Artifact Registry にpushし、Cloud Runへデプロイする
 - デプロイ先: GCPプロジェクト `daily-report-502008` / リージョン `asia-northeast1` / Cloud Runサービス名 `daily-report`
 - ビルド・デプロイの実コマンドは重複を避けるため `Makefile` に集約し、ワークフローからは `make <target>` を呼び出す構成
-- **GCP認証方式は未確定**。現状はWorkload Identity Federationを仮設定しており、GitHub Secretsに `GCP_WIF_PROVIDER` / `GCP_WIF_SERVICE_ACCOUNT` の登録が必要（未設定のためdeployジョブは現時点では失敗する）。サービスアカウントJSONキー方式に変更する場合は `.github/workflows/ci-cd.yml` の `auth` ステップをコメント記載の通り差し替えること
-- 初回のみ `make gcp-setup`（API有効化・Artifact Registryリポジトリ作成）をローカルから実行しておく必要がある
+- **GCP認証はWorkload Identity Federationで設定済み**。GCPプロジェクト `daily-report-502008` に Workload Identity Pool `github-actions-pool` / Provider `github-actions-provider` を作成し、`FixedLemon/daily-report` リポジトリに限定した属性条件（`attribute.repository == "FixedLemon/daily-report"`）を設定。サービスアカウント `github-actions-deployer@daily-report-502008.iam.gserviceaccount.com` に `roles/run.admin` / `roles/artifactregistry.writer` / `roles/iam.serviceAccountUser` を付与し、GitHub Secrets `GCP_WIF_PROVIDER` / `GCP_WIF_SERVICE_ACCOUNT` に登録済み
+- 初回セットアップ（API有効化・Artifact Registryリポジトリ `daily-report` 作成）は完了済み。新しい環境やプロジェクトを増やす場合のみ `make gcp-setup` を再実行する
 - ローカルから手動デプロイする場合は `gcloud auth login` 後に `make deploy`
+- デプロイ済みURL: `https://daily-report-533jguxdja-an.a.run.app`（Cloud Runが自動生成したURL。再デプロイで変わることがあるため、最新は `gcloud run services describe daily-report --project=daily-report-502008 --region=asia-northeast1` で確認）
 
 ## 注意事項
 
 - `AGENTS.md`（`create-next-app` が生成）に記載の通り、本リポジトリのNext.jsは学習データ上の一般的なNext.jsと破壊的変更がある可能性がある。実装前に `node_modules/next/dist/docs/` の該当ガイドを確認すること
 - OpenAPIスキーマの生成方法（Zodスキーマからの自動生成ツール等）は未選定。実装時に方針を決めて本ファイルに追記すること
-- 本リポジトリはまだgit未初期化（`git init`・GitHubリポジトリ作成が未実施）。GitHub Actionsを動かすには先にgit管理下に置く必要がある
+- GitHubリポジトリ: https://github.com/FixedLemon/daily-report （public、デフォルトブランチ `main`）
